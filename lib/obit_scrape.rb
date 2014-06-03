@@ -40,7 +40,7 @@ puts "Searching Obituaries..."
 nc_obits.each do |obit|
   fundholders.each do |fh| 
     if fh.first_name && fh.last_name
-      matches << fh if obit.name.include?(fh.first_name) && obit.name.include?(fh.last_name) 
+      matches << obit if obit.name.downcase.include?(fh.first_name.downcase) && obit.name.downcase.include?(fh.last_name.downcase) 
     end
   end
   print "."
