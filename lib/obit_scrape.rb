@@ -2,36 +2,28 @@ require 'rubygems'
 require 'open-uri'
 require_relative 'legacy_obitfinder'
 require_relative 'html_file'
-require 'odbc_utf8'
+require 'sequel'
 
 
-DB = ODBC.connect('foundsql92', ENV['ODBC_USER'].to_s, ENV['ODBC_PASS'].to_s)
+DB = Sequel.odbc('foundsql92', :user => ENV['ODBC_USER'].to_s, :password => ENV['ODBC_PASS'].to_s, :db_type => 'progress')
 FundHolder = Struct.new(:first_name, :last_name)
 
-def all_fundholders
+def individual_signers
   fundholders = []
   id_codes = []
-  begin
-    if DB.connected?
-      stmt = DB.run(%q{SELECT IDCode from PUB."Fund-Rep" WHERE PUB."Fund-Rep"."Rep-Type"='Signer' Group By IDCode})
-      stmt.each_hash { |row| id_codes << row }
-      stmt.drop
-      id_codes.each do |id| 
-        stmt = DB.run(%q{SELECT fname as first_name, lname as last_name from PUB.Profile WHERE orgcode = 1 and IDCode = ?}, id['IDCode'])
-        stmt.fetch_hash { |record| fundholders << FundHolder.new(record["first_name"], record["last_name"]) }
-        stmt.drop
-      end
-      fundholders
-    else
-      puts "not connected"
-    end
-   rescue
-    puts "Database error" 
+  DB.fetch(%q{SELECT IDCode as id from PUB."Fund-Rep" WHERE PUB."Fund-Rep"."Rep-Type"='Signer' Group By IDCode}) do |row| 
+    id_codes << row 
+  end    
+  id_codes.each do |id| 
+    DB.fetch(%q{SELECT fname as first_name, lname as last_name from PUB.Profile WHERE orgcode = 1 and IDCode = ?}, id[:id]) do |record| 
+      fundholders << FundHolder.new(record[:first_name], record[:last_name])
+    end      
   end
+  fundholders    
 end
 
 puts "Getting Fundholders"
-fundholders = all_fundholders
+fundholders = individual_signers
 legacy_find = LegacyObitFinder.new(state_id: 33, date_range: 'Last14Days', affiliate_id: 1878)
 puts "Getting Obituaries..."
 nc_obits = legacy_find.all_obits  
